@@ -11,6 +11,8 @@ function albumButton(album) {
   const text = document.createElement('div'), title = document.createElement('strong');
   const artist = document.createElement('small'), metadata = document.createElement('small');
   const plus = document.createElement('span');
+  plus.className = 'result-add';
+  plus.setAttribute('aria-hidden', 'true');
   title.textContent = album.title;
   artist.textContent = (album['artist-credit'] || []).map(c => c.name || c.artist?.name || '').join(', ') || current.artist || '';
   const kinds = {Album:'앨범', EP:'EP', Single:'싱글', Broadcast:'방송', Other:'기타'};
@@ -19,7 +21,7 @@ function albumButton(album) {
   metadata.textContent = [album['first-release-date']?.slice(0,4), kinds[album['primary-type']] || album['primary-type'], ...secondary].filter(Boolean).join(' · ');
   if (album.rating?.['votes-count']) metadata.title = `MusicBrainz 평점 참여 ${album.rating['votes-count']}명`;
   text.append(title, artist, metadata); plus.textContent = '…';
-  button.append(image, text, plus);
+  button.append(plus, image, text);
   let available = false, failed = false;
   image.onload = () => { available = true; plus.textContent = '+'; button.title = album.title + ' 추가'; };
   image.onerror = () => { failed = true; image.style.visibility = 'hidden'; plus.textContent = '—'; button.title = '등록된 커버 없음 · 직접 업로드를 이용하세요'; };
