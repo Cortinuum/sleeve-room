@@ -51,34 +51,48 @@ export function rankAlbums(albums, query = '', artistMode = false) {
   });
 }
 
-export async function searchCatalog(query, mode = 'auto') {
-  const safe = query.replace(/[+\-!(){}\[\]^"~*?:\\/|&]/g, ' ').trim();
-  if (!safe) return { albums: [], total: 0, more: null, artist: null, artistMode: false };
+export const PRIMARY_TYPES = {Album:'앨범', EP:'EP', Single:'싱글', Broadcast:'방송', Other:'기타'};
+export const SECONDARY_TYPES = {
+  Compilation:'컴필레이션', Live:'라이브', Soundtrack:'사운드트랙', Remix:'리믹스', Demo:'데모',
+  'DJ-mix':'DJ 믹스', 'Mixtape/Street':'믹스테이프', Audiobook:'오디오북',
+  'Audio drama':'오디오 드라마', Spokenword:'낭독·스포큰 워드', Interview:'인터뷰', 'Field recording':'현장 녹음'
+};
+const quote = value => '"' + value.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+export function buildQuery(criteria) {
+  const clauses = [];
+  const artist = (criteria.artist || '').trim(), album = (criteria.album || '').trim();
+  if (artist) clauses.push('artist:' + quote(artist));
+  if (album) clauses.push('releasegroup:' + quote(album));
+  if (Object.hasOwn(PRIMARY_TYPES, criteria.primary)) clauses.push('primarytype:' + quote(criteria.primary));
+  if (criteria.secondary === 'none') clauses.push('NOT secondarytype:*');
+  else if (Object.hasOwn(SECONDARY_TYPES, criteria.secondary)) clauses.push('secondarytype:' + quote(criteria.secondary));
+  if (clauses.length === 1 && clauses[0].startsWith('NOT ')) clauses.unshift('*:*');
+  return clauses.join(' AND ');
+}
+
+export async function searchCatalog(criteria, fetcher = request) {
+  const query = buildQuery(criteria);
+  const artistName = (criteria.artist || '').trim(), albumName = (criteria.album || '').trim();
+  if (!query) return { albums: [], total: 0, more: null, artist: null, artistMode: false };
   let artist;
-  // Famous album titles can also be names of obscure artists (e.g. Nevermind).
-  // Use the number of catalogued editions as a conservative ambiguity signal.
-  let recognizableAlbum = false;
-  if (mode === 'auto') {
-    const matches = await request('release-group/?' + new URLSearchParams({query: 'releasegroup:(' + safe + ')', limit: '100', offset: '0', fmt: 'json'}));
-    recognizableAlbum = (matches['release-groups'] || []).some(album =>
-      normalized(album.title) === normalized(query) && Number(album.count) >= 10);
-  }
-  if (mode !== 'album' && !recognizableAlbum) {
-    const artists = await request('artist/?' + new URLSearchParams({query: 'artist:(' + safe + ')', limit: '5', fmt: 'json'}));
+  // Keep participation-based ordering for an unfiltered artist catalogue.
+  // Every combined or filtered search is sent as a server-side AND query.
+  if (artistName && !albumName && !criteria.primary && !criteria.secondary) {
+    const artists = await fetcher('artist/?' + new URLSearchParams({query: 'artist:' + quote(artistName), limit: '5', fmt: 'json'}));
     const first = artists.artists?.[0];
-    if (first && (mode === 'artist' || Number(first.score) >= 95 || normalized(first.name) === normalized(query))) artist = first;
+    if (first && (Number(first.score) >= 95 || normalized(first.name) === normalized(artistName))) artist = first;
   }
-  const result = { albums: [], total: 0, more: null, artist: artist?.name, artistMode: !!artist };
+  const result = { albums: [], total: 0, more: null, artist: artist?.name || artistName, artistMode: !!artist, criteria: {...criteria} };
   let offset = 0;
   async function next() {
     const params = artist
       ? {artist: artist.id, inc: 'ratings+artist-credits', 'release-group-status': 'website-default'}
-      : {query: 'releasegroup:(' + safe + ')'};
-    const data = await request('release-group/?' + new URLSearchParams({...params, limit: '100', offset: String(offset), fmt: 'json'}));
+      : {query};
+    const data = await fetcher('release-group/?' + new URLSearchParams({...params, limit: '100', offset: String(offset), fmt: 'json'}));
     const page = data['release-groups'] || [];
     offset += page.length;
     result.total = Number(data['release-group-count'] ?? data.count ?? page.length);
-    result.albums = rankAlbums([...result.albums, ...page], query, !!artist);
+    result.albums = rankAlbums([...result.albums, ...page], albumName, !!artist);
     result.more = page.length && offset < result.total ? next : null;
     return result;
   }

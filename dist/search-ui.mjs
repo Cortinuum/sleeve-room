@@ -1,6 +1,12 @@
-import { searchCatalog } from './search.mjs';
+import { searchCatalog, buildQuery, PRIMARY_TYPES, SECONDARY_TYPES } from './search.mjs';
 const $ = id => document.getElementById(id);
 let generation = 0, current, visible = 30;
+for (const [id, types] of [['primaryType', PRIMARY_TYPES], ['secondaryType', SECONDARY_TYPES]]) {
+  for (const [value, label] of Object.entries(types)) {
+    const option = document.createElement('option'); option.value = value; option.textContent = label;
+    $(id).append(option);
+  }
+}
 
 function albumButton(album) {
   const button = document.createElement('button');
@@ -15,8 +21,8 @@ function albumButton(album) {
   plus.setAttribute('aria-hidden', 'true');
   title.textContent = album.title;
   artist.textContent = (album['artist-credit'] || []).map(c => c.name || c.artist?.name || '').join(', ') || current.artist || '';
-  const kinds = {Album:'앨범', EP:'EP', Single:'싱글', Broadcast:'방송', Other:'기타'};
-  const secondary = (album['secondary-types'] || []).map(t => ({Live:'라이브',Compilation:'컴필레이션',Remix:'리믹스',Demo:'데모'}[t] || t));
+  const kinds = PRIMARY_TYPES;
+  const secondary = (album['secondary-types'] || []).map(t => SECONDARY_TYPES[t] || t);
   metadata.className = 'result-meta';
   metadata.textContent = [album['first-release-date']?.slice(0,4), kinds[album['primary-type']] || album['primary-type'], ...secondary].filter(Boolean).join(' · ');
   if (album.rating?.['votes-count']) metadata.title = `MusicBrainz 평점 참여 ${album.rating['votes-count']}명`;
@@ -41,9 +47,16 @@ function renderResults() {
   const help = document.createElement('small');
   help.textContent = current.artistMode ? '정규 앨범 우선 · 평점 참여 수 기준 관심도순' : '일치도 · 정규 앨범 · 등록 판본 수 순';
   summary.append(help); $('results').append(summary);
+  const criteria = current.criteria;
+  if (criteria) {
+    const filters = [criteria.artist && '아티스트: ' + criteria.artist, criteria.album && '앨범: ' + criteria.album,
+      PRIMARY_TYPES[criteria.primary], criteria.secondary === 'none' ? '추가 유형 없음' : SECONDARY_TYPES[criteria.secondary]].filter(Boolean);
+    const applied = document.createElement('small'); applied.className = 'applied-filters';
+    applied.textContent = filters.join(' ∩ '); summary.append(applied);
+  }
   if (!current.albums.length) {
     const empty = document.createElement('div'); empty.className = 'message';
-    empty.textContent = '찾은 앨범이 없어요. 검색 방식을 바꾸거나 커버를 직접 올려 주세요.';
+    empty.textContent = '모든 조건에 맞는 앨범이 없어요. 이름을 짧게 입력하거나 종류·추가 유형을 전체로 바꿔 보세요.';
     $('results').append(empty); return;
   }
   for (const album of current.albums.slice(0, visible)) $('results').append(albumButton(album));
@@ -66,12 +79,14 @@ function renderResults() {
 }
 
 $('searchForm').onsubmit = async event => {
-  event.preventDefault(); const query = $('query').value.trim(); if (!query) return;
+  event.preventDefault();
+  const criteria = {artist:$('artistQuery').value.trim(), album:$('albumQuery').value.trim(), primary:$('primaryType').value, secondary:$('secondaryType').value};
+  if (!buildQuery(criteria)) { window.sleeveRoom.toast('아티스트명·앨범명·분류 중 하나 이상 입력해 주세요.'); $('artistQuery').focus(); return; }
   const token = ++generation;
   $('results').innerHTML = '<div class="message">앨범 목록과 관심도를 확인하고 있어요…</div>';
   $('results').setAttribute('aria-busy', 'true');
   try {
-    const result = await searchCatalog(query, $('searchMode').value);
+    const result = await searchCatalog(criteria);
     if (token !== generation) return;
     current = result; visible = 30; renderResults(); $('results').scrollTop = 0;
   } catch {
