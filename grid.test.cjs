@@ -2,6 +2,14 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const grid=require('./dist/grid.js');
 const a={id:'a'},b={id:'b'},c={id:'c'};
+test('10 by 10 supports all 100 cells without accepting a 101st album',()=>{
+  let albums=[];
+  for(let i=0;i<100;i++)albums=grid.add(albums,{id:String(i)},100);
+  assert.equal(grid.count(albums),100);
+  assert.equal(grid.add(albums,{id:'overflow'},100),albums);
+  const moved=grid.move(albums,0,99,100);
+  assert.equal(moved[99].id,'0');assert.equal(moved[0].id,'99');assert.equal(grid.count(moved),100);
+});
 test('moving to the last empty slot preserves the exact position and album count',()=>{
   const result=grid.move([a,b],0,8,9);
   assert.deepEqual(result,[null,b,null,null,null,null,null,null,a]);

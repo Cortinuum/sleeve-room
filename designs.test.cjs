@@ -2,7 +2,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const design=require('./dist/designs.js');
 test('every template keeps all cover cells inside its export canvas',()=>{
-  for(const template of design.templates)for(const n of [3,4,5])for(const gap of [0,8,24]){
+  for(const template of design.templates)for(const n of [3,4,5,10])for(const gap of [0,8,24]){
     const state={design:template.id,n,gap},m=design.layout(state);
     for(let i=0;i<n*n;i++){
       const r=design.cellRect(state,i);
@@ -13,7 +13,7 @@ test('every template keeps all cover cells inside its export canvas',()=>{
   }
 });
 test('bare template has zero outer margin, zero gaps, no title and no album labels',()=>{
-  for(const n of [3,4,5]){
+  for(const n of [3,4,5,10]){
     const state={design:'bare',n,gap:24,labels:true,color:'#222623',title:'DO NOT DRAW',albums:Array(n*n).fill({title:'DO NOT DRAW'})};
     const m=design.layout(state);assert.equal(m.labels,false);assert.equal(m.gap,0);
     const ctx={fillRect(){},drawImage(...args){calls.push(args.slice(-4));},fillText(){throw Error('Bare export must not render any text');}};

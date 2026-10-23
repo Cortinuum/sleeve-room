@@ -1,6 +1,6 @@
 const $=id=>document.getElementById(id);
 let state={albums:[],n:3,gap:8,color:'#e7e0d0',title:'MY HEAVY ROTATION',labels:false,design:'classic'};
-try{const saved=JSON.parse(localStorage.getItem('sleeve-room-v1'));if(saved&&Array.isArray(saved.albums))state={...state,...saved,n:[3,4,5].includes(saved.n)?saved.n:3};}catch{}
+try{const saved=JSON.parse(localStorage.getItem('sleeve-room-v1'));if(saved&&Array.isArray(saved.albums))state={...state,...saved,n:[3,4,5,10].includes(saved.n)?saved.n:3};}catch{}
 state.design=SleeveDesign.get(state.design).id;
 let toastTimer;
 function toast(message){$('toast').textContent=message;$('toast').style.display='block';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').style.display='none',4500);}
